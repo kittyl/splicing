@@ -3,32 +3,49 @@
 
 library(SGSeq) 
 library(DEXSeq)
+library(dplyr) 
 
 library(optparse)
 options(echo=T)
 
 option_list <- list(
-    make_option(c('--support.tab'), help='', default = "/SAN/vyplab/IoN_RNAseq/Kitty/F210I/sgseq/f210i/f210i_new_support.tab"),
-    make_option(c('--sgvc.data'), help='', default = "/SAN/vyplab/IoN_RNAseq/Kitty/F210I/sgseq/f210i/sgfc.RData"),
-    make_option(c('--dexseq.data'), help='', default = "/SAN/vyplab/IoN_RNAseq/Kitty/F210I/sgseq/f210i/dexseq.RData"),
-    make_option(c('--output'), help='', default = "/SAN/vyplab/IoN_RNAseq/Kitty/F210I/sgseq/f210i/sgseq_res.tab")
+    make_option(c('--support.tab'), help='', default = ""),
+    make_option(c('--step'), help='', default = ""), 
+    make_option(c('--code'), help='', default = ""),
+    make_option(c('--output.dir'), help='', default = "")
 )
 
 option.parser <- OptionParser(option_list=option_list)
 opt <- parse_args(option.parser)
 
 support.tab <- opt$support.tab
-sgvc.data <- opt$sgvc.data
-dexseq.data <- opt$dexseq.data
-output <- opt$output 
+code <- opt$code
+step <- opt$step 
+output.dir <- opt$output.dir
 
-load(sgvc.data) 
+if (step == "step2a") { 
+   sgvc.data <- paste0(output.dir, "/", code, "_sgvc.RData") 
+   dexseq.data <- paste0(output.dir, "/", code, "_dexseq.RData") 
+   res.clean.data <- paste0(output.dir, "/", code, "_res_clean.RData") 
+   res.clean.fname <- paste0(output.dir, "/", code, "_res_clean.tab") 
+   load(sgvc.data) 
+} else if (step == "step2b") { 
+   sgvc.data <- paste0(output.dir, "/", code, "_sgv_novel.RData") 
+   dexseq.data <- paste0(output.dir, "/", code, "_dexseq_novel.RData") 
+   res.clean.data <- paste0(output.dir, "/", code, "_res_clean_novel.RData") 
+   res.clean.fname <- paste0(output.dir, "/", code, "_res_clean_novel.tab") 
+   load(sgvc.data) 
+   sgvc <- sgvc_novel 
+} else { 
+   message("step needs to be either 2a for known variants or 2b for novel variants") 
+}  
+
 
 varcounts <- counts(sgvc)
 vid <- variantID(sgvc)
 eid <- eventID(sgvc)
 
-noreads <- which(rowSums(varcounts) == 0)
+noreads <- which(rowSums(varcounts) == 0 | rowSums(is.na(varcounts)) > 0)
 
 if(length(noreads) > 0) { 
 varcounts <- varcounts[-noreads,] 
@@ -36,27 +53,39 @@ vid <- vid[-noreads]
 eid <- eid[-noreads] 
 } 
 
+print(dim(varcounts)) 
 support  <- read.table(support.tab, header = T, stringsAsFactor = F) 
 
 formuladispersion <- ~ sample + (condition + type) * exon
 formula0 <-  ~ sample + condition
 formula1 <-  ~ sample + condition * exon
 
-DexSeqExons.loc <- DEXSeqDataSet(countData = varcounts,
-                                              sampleData = support,
-                                              design = formula1,
-                                        featureID = as.factor(vid),
-                                        groupID = as.factor(eid))
+#DexSeqExons.loc <- DEXSeqDataSet(countData = varcounts,
+#                                              sampleData = support,
+#                                              design = formula1,
+#                                        featureID = as.factor(vid),
+#                                        groupID = as.factor(eid))
 
-DexSeqExons.loc <- estimateSizeFactors(DexSeqExons.loc)
-DexSeqExons.loc <- DEXSeq::estimateDispersions(DexSeqExons.loc)
-DexSeqExons.loc <- DEXSeq::testForDEU(DexSeqExons.loc)
-DexSeqExons.loc <- DEXSeq::estimateExonFoldChanges(DexSeqExons.loc)
+#DexSeqExons.loc <- estimateSizeFactors(DexSeqExons.loc)
+#DexSeqExons.loc <- DEXSeq::estimateDispersions(DexSeqExons.loc)
+#DexSeqExons.loc <- DEXSeq::testForDEU(DexSeqExons.loc)
+#DexSeqExons.loc <- DEXSeq::estimateExonFoldChanges(DexSeqExons.loc)
 
-save(DexSeqExons.loc, file = dexseq.data) 
+#save(DexSeqExons.loc, file = dexseq.data) 
+
+load(dexseq.data) 
 
 res <- DEXSeq::DEXSeqResults (DexSeqExons.loc)
 res.clean <- as.data.frame(res)
+
+sample.data <- colData(sgvc)
+sample.names <- sample.data$sample_name 
+n.samples <- length(sample.names) 
+count.start <- which(names(res.clean) == "countData.1") 
+last <- count.start+n.samples-1 
+names(res.clean)[count.start:last] <- sample.names 
+
+res.clean$genomicData <- NULL 
 res.clean$FDR <- p.adjust(res.clean$pvalue, method = 'fdr')
 
 sgvc.df <- as.data.frame(mcols(sgvc) )
@@ -77,4 +106,11 @@ res.clean$from <- sgvc.df$from
 res.clean$to <- sgvc.df$to
 res.clean$type <- sgvc.df$type
 res.clean <- res.clean[order(res.clean$pvalue), ]
-write.table(res.clean, file = output, sep = "\t")
+
+makePretty <- function(x) { paste(unlist(x), collapse = "+") } 
+res.clean <- dplyr::mutate(res.clean , geneName=unlist(lapply(geneName, makePretty))) 
+res.clean <- dplyr::mutate(res.clean , txName=unlist(lapply(txName, makePretty))) 
+res.clean <- dplyr::mutate(res.clean , variantType=unlist(lapply(variantType, makePretty))) 
+
+save(res.clean, file =  res.clean.data) 
+write.table(res.clean, file = res.clean.fname, sep = "\t")

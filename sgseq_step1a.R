@@ -19,14 +19,16 @@ gtf <- opt$gtf
 sgseq.anno <- opt$sgseq.anno 
 output.dir <- opt$output.dir 
 
-sample.tab <- read.table(support.tab, header = T, stringsAsFactor = F) 
-sample.info <- getBamInfo(sample.tab) 
-save(sample.info, file = paste0(output.dir, "/", code, "_info.RData") ) 
-#load("/SAN/vyplab/IoN_RNAseq/Kitty/F210I/sgseq/f210i_info.RData") 
+#sample.tab <- read.table(support.tab, header = T, stringsAsFactor = F) 
+#sample.info <- getBamInfo(sample.tab) 
+#save(sample.info, file = paste0(output.dir, "/", code, "_info.RData") ) 
+load("/SAN/vyplab/IoN_RNAseq/Kitty/M323K/sgseq/m323k_adult_info.RData") 
 
 message("loading annotation")
-load(seq.anno)
+load(sgseq.anno)
+print(sgv) 
 
 message("getting variant counts") 
+print(sample.info) 
 sgvc <- getSGVariantCounts(sgv, sample_info = sample.info, cores = 8, min_denominator = 10, verbose = TRUE)
-save(sgvc, file = paste0(output.dir, "/", code, "_sgvc.RData") 
+save(sgvc, file = paste0(output.dir, "/", code, "_sgvc.RData")) 
