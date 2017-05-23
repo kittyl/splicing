@@ -12,8 +12,10 @@ option_list <- list(
     make_option(c('--support.tab'), help='', default = ""),
     make_option(c('--step'), help='', default = ""), 
     make_option(c('--code'), help='', default = ""),
-    make_option(c('--output.dir'), help='', default = "")
+    make_option(c('--output.dir'), help='', default = ""),
+    make_option(c('--species'), help='', default = "mouse")
 )
+
 
 option.parser <- OptionParser(option_list=option_list)
 opt <- parse_args(option.parser)
@@ -22,6 +24,14 @@ support.tab <- opt$support.tab
 code <- opt$code
 step <- opt$step 
 output.dir <- opt$output.dir
+species <- opt$species 
+
+if(species == "mouse") { 
+annotations.tab <- "/cluster/scratch3/vyp-scratch2/reference_datasets/RNASeq/Mouse/biomart_annotations_mouse.tab" 
+} else if (species == "human") { 
+annotations.tab <- "/cluster/scratch3/vyp-scratch2/reference_datasets/RNASeq/Human_hg38/biomart_annotations_human.tab" 
+} 
+
 
 if (step == "step2a") { 
    sgvc.data <- paste0(output.dir, "/", code, "_sgvc.RData") 
@@ -60,20 +70,22 @@ formuladispersion <- ~ sample + (condition + type) * exon
 formula0 <-  ~ sample + condition
 formula1 <-  ~ sample + condition * exon
 
-#DexSeqExons.loc <- DEXSeqDataSet(countData = varcounts,
-#                                              sampleData = support,
-#                                              design = formula1,
-#                                        featureID = as.factor(vid),
-#                                        groupID = as.factor(eid))
+if(!file.exists(dexseq.data)) { 
+DexSeqExons.loc <- DEXSeqDataSet(countData = varcounts,
+                                              sampleData = support,
+                                              design = formula1,
+                                        featureID = as.factor(vid),
+                                        groupID = as.factor(eid))
 
-#DexSeqExons.loc <- estimateSizeFactors(DexSeqExons.loc)
-#DexSeqExons.loc <- DEXSeq::estimateDispersions(DexSeqExons.loc)
-#DexSeqExons.loc <- DEXSeq::testForDEU(DexSeqExons.loc)
-#DexSeqExons.loc <- DEXSeq::estimateExonFoldChanges(DexSeqExons.loc)
+DexSeqExons.loc <- estimateSizeFactors(DexSeqExons.loc)
+DexSeqExons.loc <- DEXSeq::estimateDispersions(DexSeqExons.loc)
+DexSeqExons.loc <- DEXSeq::testForDEU(DexSeqExons.loc)
+DexSeqExons.loc <- DEXSeq::estimateExonFoldChanges(DexSeqExons.loc)
 
-#save(DexSeqExons.loc, file = dexseq.data) 
-
+save(DexSeqExons.loc, file = dexseq.data) 
+} else { 
 load(dexseq.data) 
+} 
 
 res <- DEXSeq::DEXSeqResults (DexSeqExons.loc)
 res.clean <- as.data.frame(res)
@@ -107,8 +119,17 @@ res.clean$to <- sgvc.df$to
 res.clean$type <- sgvc.df$type
 res.clean <- res.clean[order(res.clean$pvalue), ]
 
+annotation <- read.table(annotations.tab, header = TRUE) 
+row.names(annotation) <- annotation$EnsemblID
+
 makePretty <- function(x) { paste(unlist(x), collapse = "+") } 
-res.clean <- dplyr::mutate(res.clean , geneName=unlist(lapply(geneName, makePretty))) 
+
+# Now match the ensembl ID back to more human readable IDs 
+
+getHugoName <- function(x) { paste(annotation[unlist(x), "external_gene_name"], collapse="+" ) } 
+
+res.clean <- dplyr::mutate(res.clean , ensemblName=unlist(lapply(geneName, makePretty))) 
+res.clean <- dplyr::mutate(res.clean , geneName=unlist(lapply(geneName, getHugoName))) 
 res.clean <- dplyr::mutate(res.clean , txName=unlist(lapply(txName, makePretty))) 
 res.clean <- dplyr::mutate(res.clean , variantType=unlist(lapply(variantType, makePretty))) 
 

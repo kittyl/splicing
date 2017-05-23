@@ -7,7 +7,8 @@ option_list <- list(
     make_option(c('--code'), help='', default = "F210I_embryonic_brain_norm"),
     make_option(c('--gtf'), help='', default="/cluster/scratch3/vyp-scratch2/reference_datasets/RNASeq/Mouse/Mus_musculus.GRCm38.82_fixed.gtf"),
     make_option(c('--sgseq.anno'), help='', default="/SAN/vyplab/IoN_RNAseq/Kitty/Reference/Mus_musculus.GRCm38.82_sgseq_anno.RData"), 
-    make_option(c('--output.dir'), help='', default="") 
+    make_option(c('--output.dir'), help='', default=""),
+    make_option(c('--species'), help='', default="mouse") 
 )
 
 option.parser <- OptionParser(option_list=option_list)
@@ -18,11 +19,24 @@ code <- opt$code
 gtf <- opt$gtf
 sgseq.anno <- opt$sgseq.anno 
 output.dir <- opt$output.dir 
+species <- opt$species 
 
-#sample.tab <- read.table(support.tab, header = T, stringsAsFactor = F) 
-#sample.info <- getBamInfo(sample.tab) 
-#save(sample.info, file = paste0(output.dir, "/", code, "_info.RData") ) 
-load("/SAN/vyplab/IoN_RNAseq/Kitty/M323K/sgseq/m323k_adult_info.RData") 
+if(species == "mouse") { 
+   sgseq.anno = "/SAN/vyplab/IoN_RNAseq/Kitty/Reference/Mus_musculus.GRCm38.82_sgseq_anno.RData"
+} else if (species == "human") { 
+   sgseq.anno = "/SAN/vyplab/IoN_RNAseq/Kitty/Reference/Homo_sapiens.GRCh38_sgseq_anno.RData"
+} else { 
+   exit("need to put in species") 
+} 
+ 
+info.file <- paste0(output.dir, "/", code, "_info.RData")
+if(!file.exists(info.file)) { 
+sample.tab <- read.table(support.tab, header = T, stringsAsFactor = F) 
+sample.info <- getBamInfo(sample.tab) 
+save(sample.info, file = paste0(output.dir, "/", code, "_info.RData") ) 
+} else { 
+load(info.file) 
+} 
 
 message("loading annotation")
 load(sgseq.anno)
@@ -30,5 +44,5 @@ print(sgv)
 
 message("getting variant counts") 
 print(sample.info) 
-sgvc <- getSGVariantCounts(sgv, sample_info = sample.info, cores = 8, min_denominator = 10, verbose = TRUE)
+sgvc <- getSGVariantCounts(sgv, sample_info = sample.info, cores = 4, min_denominator = 10, verbose = TRUE)
 save(sgvc, file = paste0(output.dir, "/", code, "_sgvc.RData")) 

@@ -25,6 +25,9 @@ do
         --caseCondition) 
             shift 
             caseCondition=$1;;
+        --species) 
+            shift 
+            species=$1;;
         -* )
             stop "Unrecognized option: $1"
     esac
@@ -56,7 +59,7 @@ echo "
 #$ -cwd 
 
 
-$Rscript --vanilla ${step1a} --support.tab $support --code $code --output.dir $outputDir
+$Rscript --vanilla ${step1a} --support.tab $support --code $code --output.dir $outputDir --species $species
 " > $script_step1a
 
 echo $script_step1a

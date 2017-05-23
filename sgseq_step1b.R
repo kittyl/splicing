@@ -22,11 +22,15 @@ gtf <- opt$gtf
 case.condition <- opt$case.condition
 sgseq.anno <- opt$sgseq.anno 
 output.dir <- opt$output.dir 
+sample.info.file <- paste0(output.dir, "/", code, "_info.RData")
 
-#sample.tab <- read.table(support.tab, header = T, stringsAsFactor = F) 
-#sample.info <- getBamInfo(sample.tab) 
-#save(sample.info, file = "/SAN/vyplab/IoN_RNAseq/Kitty/F210I/sgseq/f210i_info.RData") 
-load("/SAN/vyplab/IoN_RNAseq/Kitty/M323K/sgseq/m323k_adult_info.RData")
+if(file.exists(sample.info.file)) { 
+   load(sample.info.file) 
+} else { 
+   sample.tab <- read.table(support.tab, header = T, stringsAsFactor = F) 
+   sample.info <- getBamInfo(sample.tab) 
+   save(sample.info, file = sample.info.file) 
+} 
 
 #tx <- importTranscripts(gtf) 
 #txf <- convertToTxFeatures(tx) 
@@ -35,7 +39,8 @@ message("loading annotation")
 load(sgseq.anno)
 
 si_cases <- subset(sample.info, condition == case.condition)
-txf_novel <- predictTxFeatures(si_cases, min_junction_count = 5, verbose = TRUE, cores = 8)
+print(si_cases) 
+txf_novel <- predictTxFeatures(si_cases, min_junction_count = 5, verbose = TRUE, cores = 4)
 
 save(txf_novel, file = paste0(output.dir, "/", code, "_txf_novel.RData")) 
 
